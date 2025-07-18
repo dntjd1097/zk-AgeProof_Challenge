@@ -4,7 +4,6 @@ import { useZKProof } from '@/hooks/useZKProof';
 import {
     ProofForm,
     ProofResults,
-    NetworkInfo,
     Instructions,
     TroubleshootingGuide,
 } from '@/components';
@@ -66,7 +65,6 @@ export default function Home() {
 
                 <div className="mt-8 space-y-8">
                     {error && <TroubleshootingGuide />}
-                    <NetworkInfo />
                     <Instructions />
                 </div>
             </div>

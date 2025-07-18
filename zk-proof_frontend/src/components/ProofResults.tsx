@@ -123,8 +123,8 @@ export const ProofResults = ({
                         className="w-full bg-green-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
                         {isVerifying
-                            ? '온체인 검증 중...'
-                            : '🌐 온체인 검증'}
+                            ? '검증 중...'
+                            : '🌐 검증'}
                     </button>
                 </div>
             )}
@@ -132,7 +132,7 @@ export const ProofResults = ({
             {verificationResult !== null && (
                 <div className="mb-6">
                     <h3 className="text-lg font-medium text-gray-700 mb-2">
-                        🌐 온체인 검증 결과
+                        🌐 검증 결과
                     </h3>
                     <div
                         className={`p-3 rounded-lg ${
@@ -142,8 +142,8 @@ export const ProofResults = ({
                         }`}
                     >
                         {verificationResult
-                            ? '✅ 온체인 증명이 유효합니다'
-                            : '❌ 온체인 증명이 유효하지 않습니다'}
+                            ? '✅ 증명이 유효합니다'
+                            : '❌ 증명이 유효하지 않습니다'}
                     </div>
                 </div>
             )}

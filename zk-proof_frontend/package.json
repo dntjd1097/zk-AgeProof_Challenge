@@ -11,8 +11,8 @@
   "dependencies": {
     "@aztec/bb.js": "^0.84.0",
     "@noir-lang/backend_barretenberg": "^0.36.0",
-    "@noir-lang/noir_js": "^1.0.0-beta.6",
-    "@noir-lang/types": "^1.0.0-beta.8",
+    "@noir-lang/noir_js": "^1.0.0-beta.7",
+    "@noir-lang/types": "^1.0.0-beta.7",
     "@zkpassport/poseidon2": "^0.6.2",
     "ethers": "^6.15.0",
     "next": "15.3.5",

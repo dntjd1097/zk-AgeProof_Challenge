@@ -1,16 +1,12 @@
 import { useState } from 'react';
-import { ethers } from 'ethers';
 import {
     formatProofForContract,
     formatPublicInputsForContract,
     generateZKProofWithGuide,
 } from '@/lib/zkProof';
 import { FormData, ZKProofResult } from '@/types';
-import {
-    VERIFIER_ABI,
-    CONTRACT_ADDRESS,
-    RPC_URL,
-} from '@/constants/contract';
+import { UltraHonkBackend } from '@aztec/bb.js';
+import { CompiledCircuit } from '@noir-lang/types';
 
 export const useZKProof = () => {
     const [isProving, setIsProving] = useState(false);
@@ -31,6 +27,15 @@ export const useZKProof = () => {
         useState<boolean | null>(null);
     const [error, setError] = useState<string>('');
     const [logs, setLogs] = useState<string[]>([]);
+
+    // 백엔드 인스턴스와 원본 데이터를 저장하기 위한 상태
+    const [backend, setBackend] =
+        useState<UltraHonkBackend | null>(null);
+    const [rawProof, setRawProof] =
+        useState<Uint8Array | null>(null);
+    const [rawPublicInputs, setRawPublicInputs] = useState<
+        any[] | null
+    >(null);
 
     const addLog = (message: string) => {
         setLogs((prev) => [
@@ -64,6 +69,21 @@ export const useZKProof = () => {
                 data.minAge
             );
 
+            // 백엔드 인스턴스 생성 및 저장 (검증용)
+            const response = await fetch('/circuit.json');
+            const circuit =
+                (await response.json()) as CompiledCircuit;
+            const backendInstance = new UltraHonkBackend(
+                circuit.bytecode,
+                {
+                    threads: Math.min(
+                        8,
+                        navigator.hardwareConcurrency || 4
+                    ),
+                }
+            );
+            setBackend(backendInstance);
+
             const formattedProof = formatProofForContract(
                 result.proof
             );
@@ -75,6 +95,8 @@ export const useZKProof = () => {
             setProof(formattedProof);
             setPublicInputs(formattedPublicInputs);
             setCommitment(result.commitment);
+            setRawProof(result.proof);
+            setRawPublicInputs(result.publicInputs);
 
             addLog('✅ Generated witness... ✅');
             addLog('🔍 Generating proof... ⏳');
@@ -115,36 +137,8 @@ export const useZKProof = () => {
         }
     };
 
-    const getDetailedErrorMessage = (
-        error: any
-    ): string => {
-        if (error.code === 'CALL_EXCEPTION') {
-            const errorData =
-                error.data || error.transaction?.data;
-
-            // Check for known error signatures
-            if (errorData === '0xd0e50be7') {
-                return '증명 길이가 올바르지 않습니다. 생성된 증명이 예상 크기와 일치하지 않습니다.';
-            } else if (errorData === '0x2e815f18') {
-                return '공개 입력 개수가 올바르지 않습니다. 2개의 공개 입력이 필요합니다.';
-            } else if (errorData === '0xff63caf8') {
-                return '증명 검증에 실패했습니다 (Sumcheck 실패). 증명이 유효하지 않습니다.';
-            } else if (errorData === '0xb96ecf7f') {
-                return '증명 검증에 실패했습니다 (Shplemini 실패). 증명이 유효하지 않습니다.';
-            }
-
-            // Generic custom error
-            return `컨트랙트 검증에 실패했습니다. 에러 코드: ${errorData}`;
-        }
-
-        return (
-            error.message ||
-            '알 수 없는 오류가 발생했습니다.'
-        );
-    };
-
     const verifyProof = async () => {
-        if (!proof || !publicInputs.length) {
+        if (!rawProof || !rawPublicInputs || !backend) {
             setError('먼저 증명을 생성해주세요.');
             return;
         }
@@ -160,67 +154,47 @@ export const useZKProof = () => {
         setError('');
 
         try {
-            addLog('🔍 Verifying proof on-chain... ⌛');
+            addLog('🔍 Verifying proof with backend... ⌛');
 
-            const provider = new ethers.JsonRpcProvider(
-                RPC_URL
-            );
-            const contract = new ethers.Contract(
-                CONTRACT_ADDRESS,
-                VERIFIER_ABI,
-                provider
-            );
-
-            console.log('Verifying proof on-chain...');
+            console.log('Verifying proof with backend...');
             console.log(
-                'Contract address:',
-                CONTRACT_ADDRESS
-            );
-            console.log('Proof length:', proof.length);
-            console.log(
-                'Public inputs length:',
-                publicInputs.length
+                'Raw proof length:',
+                rawProof.length
             );
             console.log(
-                'Proof:',
-                proof.substring(0, 100) + '...'
+                'Raw public inputs:',
+                rawPublicInputs
             );
-            console.log('Public inputs:', publicInputs);
 
-            // Validate proof length before sending
-            const expectedProofLength = 440 * 32 * 2 + 2; // 440 fields * 32 bytes * 2 (hex) + 0x prefix
-            if (proof.length !== expectedProofLength) {
-                throw new Error(
-                    `증명 길이가 올바르지 않습니다. 예상: ${expectedProofLength}, 실제: ${proof.length}`
-                );
-            }
+            const result = await backend.verifyProof({
+                proof: rawProof,
+                publicInputs: rawPublicInputs,
+            });
 
-            // Validate public inputs length
-            if (publicInputs.length !== 2) {
-                throw new Error(
-                    `공개 입력 개수가 올바르지 않습니다. 예상: 2, 실제: ${publicInputs.length}`
-                );
-            }
-
-            const result = await contract.verify(
-                proof,
-                publicInputs
-            );
             setVerificationResult(result);
 
             addLog(
-                `✅ On-chain verification: ${
+                `✅ Backend verification: ${
                     result ? 'valid' : 'invalid'
                 }... ✅`
             );
-            console.log('Verification result:', result);
+            console.log(
+                'Backend verification result:',
+                result
+            );
+
+            if (!result) {
+                setError(
+                    '백엔드 검증에 실패했습니다. 증명이 유효하지 않습니다.'
+                );
+            }
         } catch (err) {
             console.error('Error verifying proof:', err);
-            const detailedMessage =
-                getDetailedErrorMessage(err);
-            addLog('❌ On-chain verification failed');
+            addLog('❌ Backend verification failed');
             setError(
-                `검증에 실패했습니다: ${detailedMessage}`
+                `백엔드 검증에 실패했습니다: ${
+                    (err as Error).message
+                }`
             );
         } finally {
             setIsVerifying(false);
@@ -234,6 +208,9 @@ export const useZKProof = () => {
         setLocalVerificationResult(null);
         setVerificationResult(null);
         setError('');
+        setBackend(null);
+        setRawProof(null);
+        setRawPublicInputs(null);
         clearLogs();
     };
 
@@ -250,7 +227,7 @@ export const useZKProof = () => {
         clearLogs();
 
         addLog('🧪 Test proof loaded');
-        addLog('✅ Ready for on-chain verification');
+        addLog('✅ Ready for backend verification');
     };
 
     return {

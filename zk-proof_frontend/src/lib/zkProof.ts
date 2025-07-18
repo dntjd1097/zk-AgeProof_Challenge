@@ -99,28 +99,16 @@ export async function calculatePoseidon2Hash(
     age: bigint,
     nonce: bigint
 ): Promise<string> {
-    // Circuit의 테스트 결과에 따라 알려진 값들을 사용
-    // age=25, nonce=12345 -> commitment=0x075c382f7808049aa9b0fcf5e6e5eec5bcb3e7b1be1f0c7496286264bda251fd
-
-    // if (age === 25n && nonce === 12345n) {
-    //     return '0x075c382f7808049aa9b0fcf5e6e5eec5bcb3e7b1be1f0c7496286264bda251fd';
-    // }
-
-    // 다른 일반적인 테스트 케이스들도 추가
-    // if (age === 20n && nonce === 123n) {
-    //     // 이 값은 실제 회로 테스트에서 확인된 값으로 교체해야 함
-    //     console.warn(
-    //         'age=20, nonce=123에 대한 정확한 commitment가 필요합니다.'
-    //     );
-    // }
-
-    // 다른 값들에 대해서는 circuit 테스트를 통해 올바른 값을 계산해야 함
-    // 임시로 poseidon2Hash 사용 (정확하지 않을 수 있음)
-    const commitment = poseidon2Hash([age, nonce]);
-    const result =
-        '0x' + commitment.toString(16).padStart(64, '0');
-
-    return result;
+    try {
+        const commitment = poseidon2Hash([age, nonce]);
+        const result =
+            '0x' +
+            commitment.toString(16).padStart(64, '0');
+        return result;
+    } catch (error) {
+        console.error('Poseidon2 해시 계산 실패:', error);
+        throw new Error(`commitment 계산 실패: ${error}`);
+    }
 }
 
 // 가이드에 따른 완전한 ZK Proof 생성
@@ -143,11 +131,17 @@ export async function generateZKProofWithGuide(
         const circuit =
             (await response.json()) as CompiledCircuit;
 
-        // 2. UltraHonkBackend 사용 (웹 환경에서 안정적)
-        const noir = new Noir(circuit);
+        // 2. UltraHonkBackend 사용 (NoirJS recursion 가이드 설정 적용)
         const backend = new UltraHonkBackend(
-            circuit.bytecode
+            circuit.bytecode,
+            {
+                threads: Math.min(
+                    8,
+                    navigator.hardwareConcurrency || 4
+                ),
+            }
         );
+        const noir = new Noir(circuit);
 
         // 3. 올바른 commitment 계산
         const commitment = await calculatePoseidon2Hash(
@@ -170,14 +164,18 @@ export async function generateZKProofWithGuide(
         const { witness } = await noir.execute(inputs);
         console.log('Witness 생성 완료... ✅');
 
-        // 6. proof 생성 - circuit과 동일한 옵션 시도
+        // 6. proof 생성 - 멀티스레드 설정으로 생성
         console.log('Proof 생성 중... ⏳');
-        const proof = await backend.generateProof(witness);
+        const { proof, publicInputs } =
+            await backend.generateProof(witness);
         console.log('Proof 생성 완료... ✅');
 
         // 7. 검증
         console.log('Proof 검증 중... ⌛');
-        const isValid = await backend.verifyProof(proof);
+        const isValid = await backend.verifyProof({
+            proof,
+            publicInputs,
+        });
         console.log(
             `Proof ${isValid ? '유효' : '무효'}... ✅`
         );
@@ -186,9 +184,30 @@ export async function generateZKProofWithGuide(
             throw new Error('생성된 proof가 유효하지 않음');
         }
 
+        // 8. Public inputs 순서 확인 및 포맷팅
+        // Circuit에서는 [commitment, min_age] 순서로 public inputs가 정의됨
+        console.log(
+            'Generated public inputs:',
+            publicInputs
+        );
+        console.log('Expected: [commitment, min_age]');
+        console.log('Commitment:', commitment);
+        console.log('Min age:', minAge);
+
+        // Public inputs가 올바른 순서인지 확인
+        const expectedPublicInputs = [
+            commitment,
+            '0x' + minAge.toString(16).padStart(64, '0'),
+        ];
+        console.log(
+            'Expected public inputs:',
+            expectedPublicInputs
+        );
+
         return {
-            proof: proof.proof,
-            publicInputs: proof.publicInputs || [],
+            proof: proof,
+            publicInputs:
+                publicInputs || expectedPublicInputs,
             commitment: commitment,
         };
     } catch (error) {
