@@ -134,7 +134,7 @@ check_file "./target/circuit.json" "회로 파일"
 check_file "./target/circuit.gz" "Witness 파일"
 
 echo -e "${YELLOW}4. Barretenberg를 사용한 증명 생성 (Proof Generation with bb)${NC}"
-if ! run_step "증명 생성" "bb prove -b ./target/circuit.json -w ./target/circuit.gz -o ./target"; then
+if ! run_step "증명 생성" "bb prove -b ./target/circuit.json -w ./target/circuit.gz -o ./target --oracle_hash keccak  --output_format bytes_and_fields"; then
     echo -e "${RED}❌ 증명 생성 실패. 테스트 중단.${NC}"
     exit 1
 fi
@@ -145,7 +145,7 @@ check_file "./target/proof" "증명 파일"
 check_file "./target/public_inputs" "Public Inputs 파일"
 
 echo -e "${YELLOW}5. 검증 키 생성 (Verification Key Generation)${NC}"
-if ! run_step "검증키 생성" "bb write_vk -b ./target/circuit.json -o ./target"; then
+if ! run_step "검증키 생성" "bb write_vk -b ./target/circuit.json -o ./target --oracle_hash keccak"; then
     echo -e "${RED}❌ 검증키 생성 실패. 테스트 중단.${NC}"
     exit 1
 fi
@@ -154,8 +154,28 @@ fi
 echo -e "${PURPLE}📁 검증키 파일 확인:${NC}"
 check_file "./target/vk" "검증키 파일"
 
-echo -e "${YELLOW}6. 증명 검증 (Proof Verification)${NC}"
-if ! run_step "증명 검증" "bb verify -k ./target/vk -p ./target/proof -i ./target/public_inputs"; then
+echo -e "${YELLOW}6. Solidity Verifier 생성 (Solidity Verifier Generation)${NC}"
+if ! run_step "Solidity Verifier 생성" "bb write_solidity_verifier -k ./target/vk -o ./target/Verifier.sol"; then
+    echo -e "${RED}❌ Solidity Verifier 생성 실패. 테스트 중단.${NC}"
+    exit 1
+fi
+
+# Solidity verifier 파일 확인
+echo -e "${PURPLE}📁 Solidity Verifier 파일 확인:${NC}"
+check_file "./target/Verifier.sol" "Solidity Verifier"
+
+# contracts 디렉토리로 Verifier.sol 복사
+echo -e "${BLUE}📋 contracts 디렉토리로 Verifier.sol 복사 중...${NC}"
+if [ -f "./target/Verifier.sol" ]; then
+    cp "./target/Verifier.sol" "../contracts/Verifier.sol"
+    echo -e "${GREEN}✅ Verifier.sol이 ../contracts/Verifier.sol로 복사되었습니다${NC}"
+else
+    echo -e "${RED}❌ ./target/Verifier.sol 파일을 찾을 수 없습니다${NC}"
+fi
+echo ""
+
+echo -e "${YELLOW}7. 증명 검증 (Proof Verification)${NC}"
+if ! run_step "증명 검증" "bb verify -k ./target/vk -p ./target/proof -i ./target/public_inputs --oracle_hash keccak"; then
     echo -e "${RED}❌ 증명 검증 실패. 테스트 중단.${NC}"
     exit 1
 fi
@@ -185,6 +205,7 @@ echo "✅ 단위 테스트: 성공"
 echo "✅ 회로 실행 및 witness 생성: 성공"
 echo "✅ 증명 생성 (bb prove): 성공"
 echo "✅ 검증키 생성 (bb write_vk): 성공"
+echo "✅ Solidity Verifier 생성 (bb write_solidity_verifier): 성공"
 echo "✅ 증명 검증 (bb verify): 성공"
 echo ""
 echo -e "${BLUE}💡 사용 결과:${NC}"
@@ -199,5 +220,12 @@ echo "• ./target/circuit.gz - Witness 파일"
 echo "• ./target/proof - 증명 파일"
 echo "• ./target/public_inputs - Public Inputs 파일"
 echo "• ./target/vk - 검증키 파일"
+echo "• ./target/Verifier.sol - Solidity Verifier 컨트랙트"
 echo ""
-echo -e "${GREEN}🔐 Zero-Knowledge 증명이 성공적으로 생성되고 검증되었습니다!${NC}" 
+echo -e "${GREEN}🔐 Zero-Knowledge 증명이 성공적으로 생성되고 검증되었습니다!${NC}"
+echo ""
+echo -e "${BLUE}📋 Solidity Verifier 사용 안내:${NC}"
+echo "• ./target/Verifier.sol을 RemixIDE에서 컴파일 가능"
+echo "• 이더리움 테스트넷에 배포하여 온체인 검증 가능"
+echo "• 생성된 proof와 public_inputs를 사용하여 검증 함수 호출"
+echo "• 자세한 내용은 Noir 공식 문서를 참고하세요" 

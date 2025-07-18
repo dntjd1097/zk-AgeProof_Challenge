@@ -1,5 +1,4 @@
-use dep::std::hash::poseidon2;
-use std::hash;
+use dep::std::hash::poseidon2::Poseidon2;
 
 // Age verification ZK circuit
 // Public Input: commitment (hash of age and nonce), min_age (minimum age requirement)
@@ -15,8 +14,7 @@ fn main(
     // 1. Commitment verification: commitment = Hash(age || nonce)
     let inputs = [age, nonce];
     //let computed_commitment = hash::pedersen_hash(inputs);
-    let computed_commitment = poseidon2::Poseidon2::hash(inputs, 2);
-    let hashPoseidon = std::hash::poseidon::bn254::hash_4([a, b, c, d]);
+    let computed_commitment = Poseidon2::hash(inputs, 2);
 
     assert(commitment == computed_commitment);
 
@@ -28,87 +26,15 @@ fn main(
 }
 
 #[test]
-fn test_valid_age() {
-    // Test case: 25 years old (above 20)
-    let age = 26;
-    let nonce = 12345;
-    let min_age = 20;
-
-    // Calculate commitment
-    let inputs = [age, nonce];
-    //let commitment = hash::pedersen_hash(inputs);
-    let commitment = poseidon2::Poseidon2::hash(inputs, 2);
-    main(age, nonce, commitment, min_age);
-}
-
-#[test]
-fn test_exact_min_age() {
-    // Test case: exactly 20 years old
-    let age = 26;
-    let nonce = 12345;
-    let min_age = 20;
-
-    // Calculate commitment
-    let inputs = [age, nonce];
-    //let commitment = hash::pedersen_hash(inputs);
-    let commitment = poseidon2::Poseidon2::hash(inputs, 2);
-    main(age, nonce, commitment, min_age);
-}
-
-// #[test]
-// fn test_invalid_age_should_fail() {
-//     // Test case: 19 years old (below 20) - this test should fail
-//     let age = 26;
-//     let nonce = 12345;
-//     let min_age = 20;
-
-//     // Calculate commitment
-//     let inputs = [age, nonce];
-//     let commitment = hash::pedersen_hash(inputs);
-
-//     // This test is commented out. Uncomment to see it fail.
-//     // main(age, nonce, commitment, min_age);
-// }
-
-// #[test]
-// fn test_invalid_commitment_should_fail() {
-//     // Test case: wrong commitment - this test should fail
-//     let age = 26;
-//     let nonce = 12345;
-//     let min_age = 20;
-//     let wrong_commitment = 999999; // Wrong commitment
-
-//     // This test is commented out. Uncomment to see it fail.
-//     // main(age, nonce, wrong_commitment, min_age);
-// }
-
-#[test]
-fn test_print_commitment() {
-    // Test to print actual commitment value for age=25, nonce=12345
-    let age = 26;
-    let nonce = 12345;
-    let inputs = [age, nonce];
-    //let commitment = hash::pedersen_hash(inputs);
-    let commitment = poseidon2::Poseidon2::hash(inputs, 2);
-    // Print commitment value for debugging
-    std::println(f"Age: {age}, Nonce: {nonce}");
-    std::println(f"Commitment: {commitment}");
-}
-
-#[test]
 fn test_calculate_commitment_from_prover_toml() {
     // This test calculates commitment from Prover.toml values
     // Script will use this test to auto-calculate commitment
-    let age = 26; // This should match Prover.toml
+    let age = 25; // This should match Prover.toml
     let nonce = 12345; // This should match Prover.toml
     let inputs = [age, nonce];
     //let commitment = hash::pedersen_hash(inputs);
-    let commitment = poseidon2::Poseidon2::hash(inputs, 2);
+    let commitment = Poseidon2::hash(inputs, 2);
     // Print in a format that script can parse
+    std::println(f"input={inputs}");
     std::println(f"COMMITMENT_VALUE={commitment}");
 }
-// // Helper function to calculate commitment - for script use
-// fn calculate_commitment(age: Field, nonce: Field) -> Field {
-//     let inputs = [age, nonce];
-//     hash::pedersen_hash(inputs)
-// }
