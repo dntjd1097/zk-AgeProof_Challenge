@@ -1,0 +1,59 @@
+{
+    "noir_version": "1.0.0-beta.6+e796dfd67726cbc28eb9991782533b211025928d",
+    "hash": "292511125146492312",
+    "abi": {
+        "parameters": [
+            {
+                "name": "age",
+                "type": {
+                    "kind": "field"
+                },
+                "visibility": "private"
+            },
+            {
+                "name": "nonce",
+                "type": {
+                    "kind": "field"
+                },
+                "visibility": "private"
+            },
+            {
+                "name": "commitment",
+                "type": {
+                    "kind": "field"
+                },
+                "visibility": "public"
+            },
+            {
+                "name": "min_age",
+                "type": {
+                    "kind": "integer",
+                    "sign": "unsigned",
+                    "width": 8
+                },
+                "visibility": "public"
+            }
+        ],
+        "return_type": null,
+        "error_types": {}
+    },
+    "bytecode": "H4sIAAAAAAAA/9VX3XaCMAxuoeoEYbrhvY/Q8qPlzleZZ/jYe5SdwWxmrIULml4s5/QktOXzS5rGwNlNdv0ojM37ESP9wh6FG302upLHuu5OZacq9SHL9qIbWTeXo1ZaNbr5LHVVdbrWp/bSnmSr6qpT16atrvImAmFJTwnJczGfZ2lPDNze+iEsrt/G5sgWyF4YG95b9mNlzmiN5kEiKwbST1REGM8lHS8pLH+n8kD6iSLEkg66vtgKDByLxOgUAgIXfFj4suaGTQeLVBwwiDMTqTSJpBJGl5QpC3O49kX05Unp88bh81xMnEcbk1uC3YuaLdRFOiH2BSQLSThj45V6Ln7G6C5rTuhvqBjmbLzSz8XPGW0xoP43To3flOecU/K8/kpHmT+vhGeCi9WAe2D3DsrVSVAX8Zg4Fzyx/joHh+tBupKt0cPXx0MHsmPPHYj4J8H37Wa2hD7uAiUFdQHfEp4FZ+5LzNFzxO4dLRZYh0/etdEJwiDMmxLw0zD4cuXwMUF2OuK/cLzHR54jS0/tneoAM8caYL4bjfmCH2tL7xEu5R0H/CIMvvOs9sguLD9xvM9EHAAP7saCPUtkrcFe+85wen7K5hI7fgsEcqZAcxDPH1HxvPL3EgAA",
+    "debug_symbols": "nZTdjoMgEIXfhWsvGJC/vspm01BLGxKChmqTTdN3X1Bw9YJm4w1HGL7jzIi80NVcpvvZ+lv/QKevF7oE65y9n13f6dH2Pq6+3g0q0/MYjIlLaBOP1KCD8SM6+cm5Bj21m+ZNj0H7WUcdYhQ3yPhr1Gh4s86kp3fzR+M6yiRkmGOx4mzPQ52nory8pe3Kkz1P6jyhQLMBoYTXHGjdAUDy7AAEqyM5iLYUQQSrVsE+5CCUKDlIqFbB6w6KlzYocYQHvNYAWKojNShaUgDVVnP4cJY4Wc/Spovs37wQJQEh6QFe4vIRJIEjPG0Lz/iO/44z3dmw+3sRxI0NIvNI57FN3W8QS6eyQXwRsYhcRC0COCtkJVlp1jZr9oJkFtsDIqvMmvxSs546WH1xJt8rt8l3m2tm/BlKpFxEQ+g7c52CSUXNsVjmLw==",
+    "file_map": {
+        "20": {
+            "source": "use crate::default::Default;\nuse crate::hash::Hasher;\n\ncomptime global RATE: u32 = 3;\n\npub(crate) struct Poseidon2 {\n    cache: [Field; 3],\n    state: [Field; 4],\n    cache_size: u32,\n    squeeze_mode: bool, // 0 => absorb, 1 => squeeze\n}\n\nimpl Poseidon2 {\n    #[no_predicates]\n    pub(crate) fn hash<let N: u32>(input: [Field; N], message_size: u32) -> Field {\n        Poseidon2::hash_internal(input, message_size, message_size != N)\n    }\n\n    pub(crate) fn new(iv: Field) -> Poseidon2 {\n        let mut result =\n            Poseidon2 { cache: [0; 3], state: [0; 4], cache_size: 0, squeeze_mode: false };\n        result.state[RATE] = iv;\n        result\n    }\n\n    fn perform_duplex(&mut self) {\n        // add the cache into sponge state\n        for i in 0..RATE {\n            // We effectively zero-pad the cache by only adding to the state\n            // cache that is less than the specified `cache_size`\n            if i < self.cache_size {\n                self.state[i] += self.cache[i];\n            }\n        }\n        self.state = crate::hash::poseidon2_permutation(self.state, 4);\n    }\n\n    fn absorb(&mut self, input: Field) {\n        assert(!self.squeeze_mode);\n        if self.cache_size == RATE {\n            // If we're absorbing, and the cache is full, apply the sponge permutation to compress the cache\n            self.perform_duplex();\n            self.cache[0] = input;\n            self.cache_size = 1;\n        } else {\n            // If we're absorbing, and the cache is not full, add the input into the cache\n            self.cache[self.cache_size] = input;\n            self.cache_size += 1;\n        }\n    }\n\n    fn squeeze(&mut self) -> Field {\n        assert(!self.squeeze_mode);\n        // If we're in absorb mode, apply sponge permutation to compress the cache.\n        self.perform_duplex();\n        self.squeeze_mode = true;\n\n        // Pop one item off the top of the permutation and return it.\n        self.state[0]\n    }\n\n    fn hash_internal<let N: u32>(\n        input: [Field; N],\n        in_len: u32,\n        is_variable_length: bool,\n    ) -> Field {\n        let two_pow_64 = 18446744073709551616;\n        let iv: Field = (in_len as Field) * two_pow_64;\n        let mut sponge = Poseidon2::new(iv);\n        for i in 0..input.len() {\n            if i < in_len {\n                sponge.absorb(input[i]);\n            }\n        }\n\n        // In the case where the hash preimage is variable-length, we append `1` to the end of the input, to distinguish\n        // from fixed-length hashes. (the combination of this additional field element + the hash IV ensures\n        // fixed-length and variable-length hashes do not collide)\n        if is_variable_length {\n            sponge.absorb(1);\n        }\n        sponge.squeeze()\n    }\n}\n\npub(crate) struct Poseidon2Hasher {\n    _state: [Field],\n}\n\nimpl Hasher for Poseidon2Hasher {\n    fn finish(self) -> Field {\n        let iv: Field = (self._state.len() as Field) * 18446744073709551616; // iv = (self._state.len() << 64)\n        let mut sponge = Poseidon2::new(iv);\n        for i in 0..self._state.len() {\n            sponge.absorb(self._state[i]);\n        }\n        sponge.squeeze()\n    }\n\n    fn write(&mut self, input: Field) {\n        self._state = self._state.push_back(input);\n    }\n}\n\nimpl Default for Poseidon2Hasher {\n    fn default() -> Self {\n        Poseidon2Hasher { _state: &[] }\n    }\n}\n",
+            "path": "std/hash/poseidon2.nr"
+        },
+        "50": {
+            "source": "use dep::std::hash::poseidon2::Poseidon2;\n\n// Age verification ZK circuit\n// Public Input: commitment (hash of age and nonce), min_age (minimum age requirement)\n// Private Input: age (actual age), nonce (random value for commitment generation)\nfn main(\n    // Private inputs (witness)\n    age: Field,\n    nonce: Field,\n    // Public inputs\n    commitment: pub Field,\n    min_age: pub u8,\n) {\n    // 1. Commitment verification: commitment = Hash(age || nonce)\n    let inputs = [age, nonce];\n    //let computed_commitment = hash::pedersen_hash(inputs);\n    let computed_commitment = Poseidon2::hash(inputs, 2);\n\n    assert(commitment == computed_commitment);\n\n    // 2. Age condition verification: age >= min_age\n    // Convert Fields to u32 for comparison\n    let age_u32 = age as u32;\n    let min_age_u32 = min_age as u32;\n    assert(age_u32 >= min_age_u32);\n}\n\n#[test]\nfn test_calculate_commitment_from_prover_toml() {\n    // This test calculates commitment from Prover.toml values\n    // Script will use this test to auto-calculate commitment\n    let age = 25; // This should match Prover.toml\n    let nonce = 12345; // This should match Prover.toml\n    let inputs = [age, nonce];\n    //let commitment = hash::pedersen_hash(inputs);\n    let commitment = Poseidon2::hash(inputs, 2);\n    // Print in a format that script can parse\n    std::println(f\"input={inputs}\");\n    std::println(f\"COMMITMENT_VALUE={commitment}\");\n}\n",
+            "path": "/Users/jeong-useong/workspace/zket_noir/ZKET_NOIR/project1/zk_age/zk-AgeProof_Challenge/circuit/src/main.nr"
+        }
+    },
+    "names": [
+        "main"
+    ],
+    "brillig_names": [
+        "directive_integer_quotient",
+        "directive_invert"
+    ]
+}

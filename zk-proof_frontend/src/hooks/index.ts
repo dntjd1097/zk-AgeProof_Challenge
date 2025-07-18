@@ -1,0 +1,1 @@
+export { useZKProof } from './useZKProof';

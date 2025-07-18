@@ -1,0 +1,36 @@
+{
+  "name": "zk-proof_frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@aztec/bb.js": "^0.84.0",
+    "@noir-lang/backend_barretenberg": "^0.36.0",
+    "@noir-lang/noir_js": "^1.0.0-beta.6",
+    "@noir-lang/types": "^1.0.0-beta.8",
+    "@zkpassport/poseidon2": "^0.6.2",
+    "ethers": "^6.15.0",
+    "next": "15.3.5",
+    "poseidon-lite": "^0.3.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-hook-form": "^7.60.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20.19.7",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "15.3.5",
+    "tailwindcss": "^4",
+    "ts-node": "^10.9.1",
+    "typescript": "^5"
+  }
+}
